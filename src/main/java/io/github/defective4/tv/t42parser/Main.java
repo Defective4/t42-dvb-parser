@@ -66,68 +66,76 @@ public class Main {
             Map<String, String> links = new LinkedHashMap<>();
 
             for (String tsPath : Arrays.copyOfRange(args, 1, args.length)) {
-                File tsFile = new File(tsPath);
-                if (!tsFile.isFile()) {
-                    System.err.println("File " + tsPath + " does not exist");
-                    System.exit(4);
-                    return;
-                }
+                try {
+                    File tsFile = new File(tsPath);
+                    if (!tsFile.isFile()) {
+                        System.err.println("File " + tsPath + " does not exist");
+                        System.exit(4);
+                        return;
+                    }
 
-                System.err.println("Loading " + tsFile + "...");
+                    System.err.println("Loading " + tsFile + "...");
 
-                TransportStream ts = new TransportStream(tsFile);
-                ts.parseStream(null);
+                    TransportStream ts = new TransportStream(tsFile);
+                    ts.parseStream(null);
 
-                System.err.println("Processing " + tsFile + "...");
+                    System.err.println("Processing " + tsFile + "...");
 
-                for (PID pid : ts.getPids()) {
-                    if (pid == null) continue;
-                    String label = ((Object) pid.getLabelMaker()).toString();
-                    if (label.toLowerCase().startsWith("teletext - ")) {
-                        String service = label.substring(label.indexOf('-') + 2);
-                        int cIndex = service.indexOf(", ");
-                        if (cIndex != -1) service = service.substring(0, cIndex);
+                    for (PID pid : ts.getPids()) {
+                        try {
+                            if (pid == null) continue;
+                            String label = ((Object) pid.getLabelMaker()).toString();
+                            if (label.toLowerCase().startsWith("teletext - ")) {
+                                String service = label.substring(label.indexOf('-') + 2);
+                                int cIndex = service.indexOf(", ");
+                                if (cIndex != -1) service = service.substring(0, cIndex);
 
-                        File serviceDir = new File(targetDirectory, service);
-                        serviceDir.mkdirs();
+                                File serviceDir = new File(targetDirectory, service);
+                                serviceDir.mkdirs();
 
-                        System.err.println("Parsing teletext for " + service + "...");
-                        EBUTeletextHandler handler = (EBUTeletextHandler) pid.getPidHandler();
-                        ts.parsePidStreams(Map.of(pid.getPid(), handler));
-                        byte[] data;
-                        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-                            for (PesPacketData packet : handler.getPesPackets()) {
-                                if (packet instanceof EBUPESDataField ebuPacket) {
-                                    for (EBUDataField field : ebuPacket.getFieldList()) {
-                                        if (field != null) {
-                                            byte[] d = (byte[]) dataBlockMethod.invoke(field);
-                                            int offset = (int) offsetMethod.invoke(field);
-                                            for (int i = 4; i < 46; ++i) {
-                                                os.write(Utils.invtab[Byte.toUnsignedInt(d[offset + i])]);
+                                System.err.println("Parsing teletext for " + service + "...");
+                                EBUTeletextHandler handler = (EBUTeletextHandler) pid.getPidHandler();
+                                ts.parsePidStreams(Map.of(pid.getPid(), handler));
+                                byte[] data;
+                                try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+                                    for (PesPacketData packet : handler.getPesPackets()) {
+                                        if (packet instanceof EBUPESDataField ebuPacket) {
+                                            for (EBUDataField field : ebuPacket.getFieldList()) {
+                                                if (field != null) {
+                                                    byte[] d = (byte[]) dataBlockMethod.invoke(field);
+                                                    int offset = (int) offsetMethod.invoke(field);
+                                                    for (int i = 4; i < 46; ++i) {
+                                                        os.write(Utils.invtab[Byte.toUnsignedInt(d[offset + i])]);
+                                                    }
+                                                }
                                             }
                                         }
                                     }
+                                    os.flush();
+                                    data = os.toByteArray();
+                                }
+                                System.err.println("Processing teletext for " + service + "...");
+                                TeletextCommand.process(data, serviceDir);
+                                System.err.println("Saving style files for " + service + "...");
+                                saveResource("/teletext.css", new File(serviceDir, "teletext.css"));
+                                saveResource("/teletext2.ttf", new File(serviceDir, "teletext2.ttf"));
+                                saveResource("/teletext4.ttf", new File(serviceDir, "teletext4.ttf"));
+                                List<File> fs = new ArrayList<>();
+                                Collections.addAll(fs, serviceDir.listFiles());
+                                if (!fs.isEmpty()) {
+                                    fs.sort((f1, f2) -> f1.getName().compareTo(f2.getName()));
+                                    String first = fs.get(0).getName();
+                                    if (first.endsWith(".html")) {
+                                        links.put(service, service + "/" + first);
+                                    }
                                 }
                             }
-                            os.flush();
-                            data = os.toByteArray();
-                        }
-                        System.err.println("Processing teletext for " + service + "...");
-                        TeletextCommand.process(data, serviceDir);
-                        System.err.println("Saving style files for " + service + "...");
-                        saveResource("/teletext.css", new File(serviceDir, "teletext.css"));
-                        saveResource("/teletext2.ttf", new File(serviceDir, "teletext2.ttf"));
-                        saveResource("/teletext4.ttf", new File(serviceDir, "teletext4.ttf"));
-                        List<File> fs = new ArrayList<>();
-                        Collections.addAll(fs, serviceDir.listFiles());
-                        if (!fs.isEmpty()) {
-                            fs.sort((f1, f2) -> f1.getName().compareTo(f2.getName()));
-                            String first = fs.get(0).getName();
-                            if (first.endsWith(".html")) {
-                                links.put(service, service + "/" + first);
-                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                     }
+                } catch(Exception e) {
+                    e.printStackTrace();
                 }
             }
 
