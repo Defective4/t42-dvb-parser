@@ -10,6 +10,6 @@ java -jar t42-dvb-parser.jar [output dir] [input .ts files...]
 ```
 
 # Credits
-TS EPG Reader depends on the following projects:
+Teletext parser depends on the following projects:
 - Eric Berendsen's [dvbinspector](https://github.com/EricBerendsen/dvbinspector)
 - [ali1234/vhs-teletext](https://github.com/ali1234/vhs-teletext)
