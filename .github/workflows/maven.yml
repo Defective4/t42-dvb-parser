@@ -1,0 +1,26 @@
+on: push
+jobs:
+  maven:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup JDK
+        uses: actions/setup-java@v4.6.0
+        with:
+          java-version: 21
+          distribution: adopt
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+      - name: Clone dvbinspector repo
+        run: git clone --depth 1 https://github.com/EricBerendsen/dvbinspector
+      - name: Build dvbinspector
+        run: |
+          cd dvbinspector
+          mvn install
+          cd ..
+      - name: Build teletext parser
+        run: mvn package
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4.5.0
+        with:
+          name: t42-dvb-parser
+          path: target/t42*.jar
