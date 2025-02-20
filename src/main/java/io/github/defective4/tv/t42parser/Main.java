@@ -48,13 +48,7 @@ public class Main {
             offsetMethod.setAccessible(true);
 
             File targetDirectory = new File(args[0]);
-            if (targetDirectory.isDirectory()) {
-                if (targetDirectory.listFiles().length != 0) {
-                    System.err.println("Output directory already exists and is not empty");
-                    System.exit(2);
-                    return;
-                }
-            } else {
+            if (!targetDirectory.isDirectory()) {
                 if (targetDirectory.exists()) {
                     System.err.println("Output path exists and is not an empty directory");
                     System.exit(2);
@@ -91,6 +85,10 @@ public class Main {
                                 if (cIndex != -1) service = service.substring(0, cIndex);
 
                                 File serviceDir = new File(targetDirectory, service);
+                                if (serviceDir.isDirectory() && serviceDir.listFiles().length > 0) {
+                                    System.err.println("Service directory for " + service + " already exists");
+                                    continue;
+                                }
                                 serviceDir.mkdirs();
 
                                 System.err.println("Parsing teletext for " + service + "...");
@@ -134,16 +132,21 @@ public class Main {
                             e.printStackTrace();
                         }
                     }
-                } catch(Exception e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
 
             if (!links.isEmpty()) {
+                File linkFile = new File(targetDirectory, "index.html");
                 System.err.println("Generating index file...");
                 Document doc;
-                try (InputStream is = Main.class.getResourceAsStream("/index.html")) {
-                    doc = Jsoup.parse(is, "utf-8", "");
+                if (linkFile.isFile()) {
+                    doc = Jsoup.parse(linkFile);
+                } else {
+                    try (InputStream is = Main.class.getResourceAsStream("/index.html")) {
+                        doc = Jsoup.parse(is, "utf-8", "");
+                    }
                 }
                 Element ul = doc.getElementById("list");
                 for (Map.Entry<String, String> entry : links.entrySet()) {
@@ -152,7 +155,7 @@ public class Main {
                     a.attr("href", entry.getValue());
                     a.html(entry.getKey());
                 }
-                try (Writer writer = new FileWriter(new File(targetDirectory, "index.html"), StandardCharsets.UTF_8)) {
+                try (Writer writer = new FileWriter(linkFile, StandardCharsets.UTF_8)) {
                     writer.write(doc.toString());
                 }
             }
